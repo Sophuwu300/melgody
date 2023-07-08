@@ -13,6 +13,7 @@ import (
 
 var (
 	curdir string
+	done   = make(chan bool)
 )
 
 func getallfiles() []string {
@@ -97,13 +98,26 @@ func play(song string) {
 	file, _ := os.Open(song)
 	streamer, format, _ := mp3.Decode(file)
 	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-	done := make(chan bool)
+	done = make(chan bool)
 	speaker.Play(beep.Seq(streamer, beep.Callback(func() {
 		done <- true
 	})))
 	<-done
 	streamer.Close()
 	file.Close()
+}
+
+func skipsong() {
+	var input string
+	for {
+		time.Sleep(200 * time.Millisecond)
+		fmt.Print("Enter 'skip' to skip the current song: ")
+		fmt.Scanln(&input)
+		if input == "skip" {
+			speaker.Clear()
+			done <- true
+		}
+	}
 }
 
 func main() {
@@ -124,5 +138,6 @@ func main() {
 		fmt.Println("No songs found.")
 		os.Exit(0)
 	}
-	playlist(songs)
+	go playlist(songs)
+	skipsong()
 }
