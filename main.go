@@ -2,8 +2,13 @@ package main
 
 import (
 	"fmt"
+	"github.com/faiface/beep"
+	"github.com/faiface/beep/mp3"
+	"github.com/faiface/beep/speaker"
 	"math/rand"
 	"os"
+	"strings"
+	"time"
 )
 
 var (
@@ -46,14 +51,28 @@ func getargsongs() []string {
 }
 
 func showqueue(songs []string) {
+	if len(songs) == 0 {
+		fmt.Println("\nEmpty queue.")
+		os.Exit(0)
+	}
+	var tmpstr string
+	tmpstr = strings.Split(songs[0], "/")[len(strings.Split(songs[0], "/"))-1]
+	tmpstr = tmpstr[:len(tmpstr)-4]
+	fmt.Printf("\nNow Playing:\n%s\n\n", tmpstr)
+	if len(songs) == 1 {
+		return
+	}
 	fmt.Println("Up Next:")
 	var loopmax int = 5
 	if len(songs) < loopmax {
 		loopmax = len(songs)
 	}
-	for i := 0; i < loopmax; i++ {
-		fmt.Printf("%d: %s\n", i+1, songs[i])
+	for i := 1; i < loopmax; i++ {
+		tmpstr = strings.Split(songs[i], "/")[len(strings.Split(songs[i], "/"))-1]
+		tmpstr = tmpstr[:len(tmpstr)-4]
+		fmt.Printf("%d: %s\n", i, tmpstr)
 	}
+	fmt.Println("")
 }
 
 func shuffle(songs *[]string) {
@@ -67,23 +86,43 @@ func shuffle(songs *[]string) {
 	}
 }
 
+func playlist(songs []string) {
+	for i := range songs {
+		showqueue(songs[i:])
+		play(songs[i])
+	}
+}
+
+func play(song string) {
+	file, _ := os.Open(song)
+	streamer, format, _ := mp3.Decode(file)
+	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+	done := make(chan bool)
+	speaker.Play(beep.Seq(streamer, beep.Callback(func() {
+		done <- true
+	})))
+	<-done
+	streamer.Close()
+	file.Close()
+}
+
 func main() {
 	tmpstr, err := os.Getwd()
 	if err != nil {
-		fmt.Println("An error occured while getting the current directory.")
+		fmt.Println("An error occured while getting the directory.")
 		os.Exit(1)
 	}
 	curdir = tmpstr
 	var songs []string
 	if len(os.Args) <= 1 {
 		songs = getallfiles()
+		shuffle(&songs)
 	} else {
 		songs = getargsongs()
 	}
-	shuffle(&songs)
 	if len(songs) == 0 {
 		fmt.Println("No songs found.")
 		os.Exit(0)
 	}
-	showqueue(songs)
+	playlist(songs)
 }
